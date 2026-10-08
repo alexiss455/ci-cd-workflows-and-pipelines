@@ -1,0 +1,76 @@
+name: Test and Score
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    name: Lint, test, score, and report coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine test selection
+        id: selection
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "selection=all" >> "$GITHUB_OUTPUT"
+            echo "test_file=" >> "$GITHUB_OUTPUT"
+            echo "Pull requests always run the complete test suite."
+          else
+            node scripts/determine-test.js "$COMMIT_MESSAGE"
+          fi
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Jest and generate coverage
+        id: jest
+        continue-on-error: true
+        run: |
+          if [ -n "${{ steps.selection.outputs.test_file }}" ]; then
+            echo "Running selected tests: ${{ steps.selection.outputs.test_file }}"
+            npx jest "${{ steps.selection.outputs.test_file }}" --coverage --json --outputFile=test-results.json
+          else
+            echo "Running complete test suite"
+            npx jest --coverage --json --outputFile=test-results.json
+          fi
+
+      - name: Calculate score and enforce requirements
+        id: score
+        if: always()
+        env:
+          MINIMUM_SCORE: 80
+        run: node scripts/calculate-score.js test-results.json
+
+      - name: Upload coverage artifact
+        if: always() && hashFiles('coverage/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-coverage
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Jest execution result
+        if: steps.jest.outcome == 'failure'
+        run: |
+          echo "Jest reported a failure. See test score above."
+          exit 1
