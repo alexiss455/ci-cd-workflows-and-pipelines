@@ -2,7 +2,9 @@ name: Test and Score
 
 on:
   push:
+    branches: [main, dev]
   pull_request:
+    branches: [main, dev]
 
 permissions:
   contents: read
@@ -14,6 +16,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate submission message
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            MESSAGE="$PULL_REQUEST_TITLE"
+          else
+            MESSAGE="$COMMIT_MESSAGE"
+          fi
+          if [ "$MESSAGE" != "submit-technical-exam" ]; then
+            echo "Required message: submit-technical-exam"
+            echo "Received message: $MESSAGE"
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

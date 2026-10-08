@@ -13,7 +13,7 @@ A production-style example of a JavaScript project using Jest, ESLint, commit-aw
 - `src/functions/` contains calculator, string, and user-domain functions.
 - `src/index.js` exports the function groups for consumers.
 - `tests/` contains Jest unit tests; each Jest `test()` declaration counts as one case.
-- `scripts/determine-test.js` reads a commit message and selects a test file (unrecognized messages select all tests).
+- `scripts/determine-test.js` supports choosing a test file from a message; the GitHub workflows enforce the required submission message and run the complete suite.
 - `scripts/calculate-score.js` consumes Jest's JSON output, calculates the score, writes the workflow summary, and enforces score and coverage requirements.
 - `.github/workflows/` contains separate test, lint, and combined scoring pipelines.
 
@@ -31,17 +31,7 @@ npm run ci
 
 ## Commit-message test selection
 
-The combined `pipeline.yml` examines the pushed commit's subject/message. These exact formats select an individual test file:
-
-| Commit message | Jest selection |
-|---|---|
-| `test: calculator` | `tests/calculator.test.js` |
-| `test: string` | `tests/string.test.js` |
-| `test: user` | `tests/user.test.js` |
-| `test: all` | Entire Jest suite |
-| `submit-techinical-exam` | Entire Jest suite |
-
-The submission message `submit-techinical-exam` (including this exact spelling) is not a specific `test:` selector, so it uses the default behavior and runs the entire Jest suite. Any other unrecognized push message (for example, `feat: add calculator`) also runs all tests. Pull requests always run all tests, regardless of commit message. ESLint always checks the complete project.
+All three workflows require the exact message `submit-technical-exam`. On a push, this must be the commit message; on a pull request, it must be the PR title. A different message causes that workflow to fail before installing dependencies or running tests. With the required message, the combined pipeline runs the complete Jest suite. Pull requests always run the complete suite.
 
 Example:
 
@@ -51,31 +41,19 @@ git commit -m "test: calculator"
 git push
 ```
 
-To run all test cases for the technical exam submission, use:
+To run all test cases and pass the required message check, use:
 
 ```bash
 git add .
-git commit -m "submit-techinical-exam"
+git commit -m "submit-technical-exam"
 git push
 ```
 
-The other examples work the same way:
+Do not use other commit messages for submissions: messages such as `test: string` or `test: all` will fail the workflow message check. The `determine-test.js` script can still be run locally to preview per-file selection, but GitHub Actions requires `submit-technical-exam` and runs all tests.
 
-```bash
-git add .
-git commit -m "test: string"
-git push
-```
+On push, GitHub Actions validates `github.event.head_commit.message` against `submit-technical-exam`, then executes the full suite using Jest with coverage and `--json --outputFile=test-results.json`. Jest's assertion results provide the actual test count; no test count is hardcoded. The score is printed in the Actions log and included in `$GITHUB_STEP_SUMMARY`.
 
-```bash
-git add .
-git commit -m "test: all"
-git push
-```
-
-On push, GitHub Actions reads `github.event.head_commit.message`, selects `tests/calculator.test.js`, and executes that file using Jest with coverage and `--json --outputFile=test-results.json`. Jest's assertion results provide the actual test count; no test count is hardcoded. The score is printed in the Actions log and included in `$GITHUB_STEP_SUMMARY`.
-
-> For multiple commits in one push, selection is based on the head commit only. Use `test: all`, `submit-techinical-exam`, or any non-specific `test:` message to run every test. Pull requests always run every test.
+> For multiple commits in one push, the head commit message must be exactly `submit-technical-exam`. Pull request titles must also exactly match this message.
 
 ## Scoring and pass/fail policy
 
@@ -94,7 +72,7 @@ Run `node scripts/determine-test.js "test: calculator"` to preview selection. To
 - The combined pipeline uploads the `coverage/` directory as the **`jest-coverage`** artifact for 14 days. Download it from the workflow run's Artifacts section.
 - The Actions summary presents test counts, score, grade, status, and coverage percentages.
 
-All three workflows are separate checks and trigger on pushes and pull requests. The combined pipeline has commit-aware selection only for push events; PR runs always execute all tests.
+All three workflows are separate checks and trigger on pushes and pull requests. Each rejects the run unless the push commit message or pull request title is exactly `submit-technical-exam`. The combined pipeline runs the full test suite for accepted submissions.
 
 ## Expanding the pipeline
 
