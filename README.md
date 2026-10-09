@@ -4,7 +4,7 @@ A production-style example of a JavaScript project using Jest, ESLint, commit-aw
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 24 or newer
 - npm (bundled with Node.js)
 - Git; GitHub Actions runs the CI workflows when pushed to GitHub
 
